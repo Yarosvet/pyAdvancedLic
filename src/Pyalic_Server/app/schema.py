@@ -95,19 +95,24 @@ class ListSignatures(BaseModel):
     items: int
 
 
-class CheckLicense(BaseModel):
+class LicenseKey(BaseModel):
     license_key: str
+
+
+class CheckLicense(LicenseKey):
     fingerprint: str
 
 
-class GoodLicense(BaseModel):
-    success: bool = True
-    session_id: str
+class LicenseInfo(BaseModel):
     additional_content_signature: str
     additional_content_product: str
+    ends: int | None
+    activated: int | None
+    install_limit: int | None
+    sessions_limit: int | None
 
 
-class SessionIdField(BaseModel):
+class SessionId(BaseModel):
     session_id: str
 
 

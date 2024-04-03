@@ -49,28 +49,46 @@ class TestKeySession:  # pylint: disable=C0115
             "license_key": license_key,
             "fingerprint": rand_str(16)
         }
-        r = client.request('POST', '/check_license', json=p)
+        r = client.request('POST', '/session', json=p)
         assert r.status_code == 200
         return r.json()['session_id']
 
-    def test_wrong_key(self, client):
+    def test_wrong_key_info(self, client):
+        p = {
+            "license_key": rand_str(16)
+        }
+        r = client.request('POST', '/key_info', json=p)
+        assert r.status_code == 400
+        assert r.json()['detail'] == lic_exc.InvalidKeyException().detail
+
+    def test_wrong_key_start_session(self, client):
+        self.__create_rand_signature()
         p = {
             "license_key": rand_str(16),
             "fingerprint": rand_str(16)
         }
-        r = client.request('POST', '/check_license', json=p)
+        r = client.request('POST', '/session', json=p)
         assert r.status_code == 400
         assert r.json()['detail'] == lic_exc.InvalidKeyException().detail
 
-    def test_valid_key(self, client):
+    def test_valid_key_info(self, client):
+        key = self.__create_rand_signature()[1]
+        p = {
+            "license_key": key
+        }
+        r = client.request('POST', '/key_info', json=p)
+        assert r.status_code == 200
+        assert r.json()
+
+    def test_valid_key_start_session(self, client):
         key = self.__create_rand_signature()[1]
         p = {
             "license_key": key,
             "fingerprint": rand_str(16)
         }
-        r = client.request('POST', '/check_license', json=p)
+        r = client.request('POST', '/session', json=p)
         assert r.status_code == 200
-        assert r.json()['success'] and r.json()['session_id']
+        assert r.json()['session_id']
 
     def test_immediately_end_session(self, client):
         """Create session by verifying key and immediately end it"""
@@ -78,7 +96,7 @@ class TestKeySession:  # pylint: disable=C0115
         p = {
             "session_id": session_id
         }
-        r = client.request('POST', '/end_session', json=p)
+        r = client.request('DELETE', '/session', json=p)
         assert r.status_code == 200
         assert r.json()['success']
 
@@ -90,10 +108,10 @@ class TestKeySession:  # pylint: disable=C0115
         }
         for _ in range(2):
             time.sleep(1)
-            r = client.request('POST', '/keepalive', json=p)
+            r = client.request('POST', '/session/keepalive', json=p)
             assert r.status_code == 200
         time.sleep(1)
-        r = client.request('POST', '/end_session', json=p)
+        r = client.request('DELETE', '/session', json=p)
         assert r.status_code == 200
         assert r.json()['success']
 
@@ -104,7 +122,7 @@ class TestKeySession:  # pylint: disable=C0115
             "session_id": session_id
         }
         time.sleep(config.SESSION_ALIVE_PERIOD + 2.1)
-        r = client.request('POST', '/keepalive', json=p)
+        r = client.request('POST', '/session/keepalive', json=p)
         assert r.status_code == 404
 
     def test_keepalive_auto_end_session(self, client):
@@ -115,10 +133,10 @@ class TestKeySession:  # pylint: disable=C0115
         }
         for _ in range(2):
             time.sleep(1)
-            r = client.request('POST', '/keepalive', json=p)
+            r = client.request('POST', '/session/keepalive', json=p)
             assert r.status_code == 200
         time.sleep(config.SESSION_ALIVE_PERIOD + 2.1)
-        r = client.request('POST', '/keepalive', json=p)
+        r = client.request('POST', '/session/keepalive', json=p)
         assert r.status_code == 404
 
     def test_limit_installs(self, client):
@@ -129,11 +147,11 @@ class TestKeySession:  # pylint: disable=C0115
             "license_key": key,
             "fingerprint": rand_str(16)
         }
-        r = client.request('POST', '/check_license', json=p)
+        r = client.request('POST', '/session', json=p)
         assert r.status_code == 200
-        client.request('POST', '/end_session', json={"session_id": r.json()["session_id"]})
+        client.request('DELETE', '/session', json={"session_id": r.json()["session_id"]})
         p['fingerprint'] = rand_str(16)
-        r = client.request('POST', '/check_license', json=p)
+        r = client.request('POST', '/session', json=p)
         assert r.status_code == 400
         assert r.json()['detail'] == lic_exc.InstallationsLimitException().detail
 
@@ -145,9 +163,9 @@ class TestKeySession:  # pylint: disable=C0115
             "license_key": key,
             "fingerprint": rand_str(16)
         }
-        r = client.request('POST', '/check_license', json=p)
+        r = client.request('POST', '/session', json=p)
         assert r.status_code == 200
-        r = client.request('POST', '/check_license', json=p)
+        r = client.request('POST', '/session', json=p)
         assert r.status_code == 400
         assert r.json()['detail'] == lic_exc.SessionsLimitException().detail
 
@@ -160,12 +178,12 @@ class TestKeySession:  # pylint: disable=C0115
             "license_key": key,
             "fingerprint": rand_str(16)
         }
-        r = client.request('POST', '/check_license', json=p)
+        r = client.request('POST', '/session', json=p)
         assert r.status_code == 200
-        r = client.request('POST', '/end_session', json={"session_id": r.json()["session_id"]})
+        r = client.request('DELETE', '/session', json={"session_id": r.json()["session_id"]})
         assert r.status_code == 200
         time.sleep(sig_period)
-        r = client.request('POST', '/check_license', json=p)
+        r = client.request('POST', '/session', json=p)
         assert r.status_code == 400
         assert r.json()['detail'] == lic_exc.LicenseExpiredException().detail
 
@@ -178,8 +196,8 @@ class TestKeySession:  # pylint: disable=C0115
             "license_key": key,
             "fingerprint": rand_str(16)
         }
-        r = client.request('POST', '/check_license', json=p)
+        r = client.request('POST', '/session', json=p)
         assert r.status_code == 200
         time.sleep(sig_period + 2)
-        r = client.request('POST', '/keepalive', json={"session_id": r.json()['session_id']})
+        r = client.request('POST', '/session/keepalive', json={"session_id": r.json()['session_id']})
         assert r.status_code == 404

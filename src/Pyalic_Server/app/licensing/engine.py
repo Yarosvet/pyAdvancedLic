@@ -11,7 +11,7 @@ from . import exceptions
 from .sessions import search_sessions, create_session
 
 
-async def process_check_request(license_key: str, fingerprint: str, session: AsyncSession) -> str:
+async def check_and_start_session(license_key: str, fingerprint: str, session: AsyncSession) -> str:
     """
 
     :param license_key: Client's license key
